@@ -1,14 +1,13 @@
 import { ActionRowBuilder, ButtonBuilder } from "discord.js";
-import { getOrCreateAccount } from "../../handlers/accounts.js";
+import { getAndValidateAccount } from "../../handlers/accounts.js";
 import { log } from "../../handlers/log.js";
-import { validateRelaysStatus } from "../../utils/helperFunctions.js";
+import { FollowUpEphemeralResponse } from "../../utils/helperFunctions.js";
 
 const customId = "pay";
 
 const invoke = async (interaction) => {
   try {
     await interaction.deferReply({ ephemeral: true });
-    await validateRelaysStatus();
 
     const payUrl = interaction.message.embeds[0].fields.find(
       (field) => field.name === "Solicitud de pago"
@@ -19,13 +18,8 @@ const invoke = async (interaction) => {
     );
 
     if (payUrl) {
-      const userWallet = await getOrCreateAccount(
-        interaction.user.id,
-        interaction.user.username
-      );
-
-      const mSatsBalance = await userWallet.getBalance("BTC");
-      const satsBalance = mSatsBalance * 1000;
+      const userWallet = await getAndValidateAccount(interaction, interaction.user.id);
+      const satsBalance = userWallet.balance;
 
       if (satsBalance < amountOnSats.value) {
         return FollowUpEphemeralResponse(
@@ -33,24 +27,22 @@ const invoke = async (interaction) => {
           `No tienes balance suficiente para pagar esta factura. \nTu balance: ${satsBalance} - Requerido: ${amountOnSats.value}`
         );
       } else {
-        await userWallet.payInvoice({
-          paymentRequest: payUrl.value,
-          onSuccess: async () => {
-            const row = new ActionRowBuilder().addComponents([
-              new ButtonBuilder()
-                .setCustomId("pay")
-                .setLabel(`Pagada por @${interaction.user.username}`)
-                .setEmoji({ name: `💸` })
-                .setStyle(2)
-                .setDisabled(true),
-            ]);
-
-            interaction.message.edit({ components: [row] });
-          },
-          onError: () => {
-            FollowUpEphemeralResponse(interaction, "Ocurrió un error");
-          },
+        const response = await userWallet.nwcClient.payInvoice({
+          invoice: payUrl.value,
         });
+
+        if (!response) throw new Error("Error al pagar la factura");
+
+        const row = new ActionRowBuilder().addComponents([
+          new ButtonBuilder()
+            .setCustomId("pay")
+            .setLabel(`Pagada por @${interaction.user.username}`)
+            .setEmoji({ name: `💸` })
+            .setStyle(2)
+            .setDisabled(true),
+        ]);
+
+        interaction.message.edit({ components: [row] });
 
         return interaction.editReply({
           content: "Interacción con pago de factura completada.",

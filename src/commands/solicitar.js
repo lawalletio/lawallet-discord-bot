@@ -4,10 +4,9 @@ import {
   EmbedBuilder,
   SlashCommandBuilder,
 } from "discord.js";
-import { getOrCreateAccount } from "../handlers/accounts.js";
+import { getAndValidateAccount } from "../handlers/accounts.js";
 import {
   EphemeralMessageResponse,
-  validateRelaysStatus,
 } from "../utils/helperFunctions.js";
 import { AuthorConfig } from "../utils/helperConfig.js";
 import { formatter } from "../utils/helperFormatter.js";
@@ -41,7 +40,6 @@ const invoke = async (interaction) => {
     if (!user) return;
 
     await interaction.deferReply();
-    await validateRelaysStatus();
 
     const amount = parseInt(interaction.options.get(`monto`).value);
     const description = interaction.options.get(`descripcion`);
@@ -54,17 +52,17 @@ const invoke = async (interaction) => {
         "No se permiten saldos negativos"
       );
 
-    const wallet = await getOrCreateAccount(user.id);
+    const wallet = await getAndValidateAccount(interaction, user.id);
 
-    const invoiceDetails = await wallet.generateInvoice({
-      milisatoshis: amount * 1000,
-      comment: description ? description.value : "",
+    const invoiceDetails = await wallet.nwcClient.makeInvoice({
+      amount: amount * 1000,
+      description: description ? description.value : "",
     });
 
     const embed = new EmbedBuilder().setAuthor(AuthorConfig).addFields([
       {
         name: `Solicitud de pago`,
-        value: `${invoiceDetails.pr}`,
+        value: `${invoiceDetails.invoice}`,
       },
       {
         name: `monto (sats)`,
