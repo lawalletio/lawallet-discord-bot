@@ -1,4 +1,4 @@
-import { getAndValidateAccount, getTestAccount } from "../handlers/accounts.js";
+import { getAndValidateAccount, getServiceAccount } from "../handlers/accounts.js";
 import { log } from "../handlers/log.js";
 import {
   validateAmountAndBalance,
@@ -24,9 +24,8 @@ const zap = async (
       receiver.id
     );*/
 
-    const receiverWallet = await getTestAccount(
-      interaction,
-      receiver.id
+    const receiverWallet = await getServiceAccount(
+      interaction
     );
 
     if (!senderWallet.success) {
@@ -68,6 +67,8 @@ const zap = async (
     const response = await senderWallet.nwcClient.payInvoice({
       invoice: invoiceDetails.invoice,
     });
+
+    if (!response) throw new Error("Error al realizar el pago");
 
     return { success: true, message: "Pago realizado con exito" };
   } catch (err) {

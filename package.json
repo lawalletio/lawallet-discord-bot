@@ -24,7 +24,9 @@
 	"imports": {
 		"#events/*": "./src/events/*",
 		"#commands/*": "./src/commands/*.js",
-		"#components/buttons/*": "./src/components/buttons/*.js"
+		"#components/buttons/*": "./src/components/buttons/*.js",
+		"#components/selects/*": "./src/components/selects/*.js",
+		"#components/modals/*": "./src/components/modals/*.js"
 	},
 	"type": "module",
 	"scripts": {

@@ -196,8 +196,5 @@ export {
   TimedMessage,
   FollowUpEphemeralResponse,
   handleBotResponse,
-  publishProfile,
   validateAmountAndBalance,
-  getSignupInfo,
-  existIdentity,
 };

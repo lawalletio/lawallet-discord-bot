@@ -1,15 +1,13 @@
-import { ActionRowBuilder, ButtonBuilder, EmbedBuilder } from "discord.js";
-import { getOrCreateAccount } from "../../handlers/accounts.js";
-import { closeFaucet, getFaucet } from "../../handlers/faucet.js";
-import { AuthorConfig } from "../../utils/helperConfig.js";
+import { getFaucet } from "../../handlers/faucet.js";
+import { log } from "../../handlers/log.js";
 import {
   EphemeralMessageResponse,
   FollowUpEphemeralResponse,
-  validateRelaysStatus,
 } from "../../utils/helperFunctions.js";
-import { log } from "../../handlers/log.js";
+import { faucetQueues, processFaucetQueue } from "./claim.js";
 
 const customId = "closefaucet";
+
 
 const invoke = async (interaction) => {
   try {
@@ -17,151 +15,62 @@ const invoke = async (interaction) => {
     if (!user) return;
 
     await interaction.deferReply({ ephemeral: true });
-    await validateRelaysStatus();
 
     const footerContent = interaction.message.embeds[0]?.footer?.text;
     const faucetSubStr = footerContent ? footerContent.indexOf(" ") : -1;
 
-    const faucetId =
-      faucetSubStr !== -1
-        ? footerContent.substring(faucetSubStr + 1, footerContent.length)
-        : false;
+    const faucetId = faucetSubStr !== -1
+      ? footerContent.substring(faucetSubStr + 1, footerContent.length)
+      : false;
 
-    if (!faucetId)
+    if (!faucetId) {
       return EphemeralMessageResponse(interaction, "No se encontró el faucet");
+    }
 
-    log(
-      `${user.username} presionó el boton cerrar faucet, en el faucet ${faucetId}`,
-      "info"
-    );
+    log(`${user.username} presionó el botón cerrar faucet, en el faucet ${faucetId}`, "info");
 
     const faucet = await getFaucet(faucetId);
 
-    if (!faucet)
+    if (!faucet) {
       return FollowUpEphemeralResponse(
         interaction,
         "El faucet que intentas cerrar no se encuentra en la base de datos"
       );
+    }
 
-    if (faucet.owner_id !== interaction.user.id)
+    if (faucet.owner_id !== interaction.user.id) {
       return FollowUpEphemeralResponse(
         interaction,
         "No puedes cerrar un faucet que no te pertenece"
       );
-
-    const fieldsInfo = interaction.message.embeds[0].fields;
-
-    const embed = new EmbedBuilder()
-      .setAuthor(AuthorConfig)
-      .addFields(fieldsInfo)
-      .setFooter({
-        text: `Identificador: ${faucetId}`,
-      });
-
-    const row = new ActionRowBuilder().addComponents([
-      new ButtonBuilder()
-        .setCustomId("closefaucet")
-        .setLabel("El faucet ha sido cerrado por su autor")
-        .setEmoji({ name: `✖️` })
-        .setStyle(2)
-        .setDisabled(true),
-    ]);
+    }
 
     if (faucet.closed) {
-      await interaction.message.edit({
-        embeds: [embed],
-        components: [row],
-      });
-
       return FollowUpEphemeralResponse(
         interaction,
         "El faucet ya se encuentra cerrado."
       );
     }
 
-    const wallet = await getOrCreateAccount(user.id, user.username);
-    const faucetWallet = await getOrCreateAccount(faucetId, "faucet-account");
-    const closedFaucet = await closeFaucet(faucetId);
-
-    if (closedFaucet) {
-      let milisatoshis = await faucetWallet.getBalance("BTC");
-      if (!milisatoshis || milisatoshis < 1000) return;
-
-      const invoiceDetails = await wallet.generateInvoice({
-        milisatoshis,
-      });
-      if (!invoiceDetails || !invoiceDetails.pr) return;
-
-      await faucetWallet.payInvoice({
-        paymentRequest: invoiceDetails.pr,
-        onSuccess: async () => {
-          log(
-            `${
-              user.username
-            } cerró el faucet ${faucetId} y se le reintegraron ${
-              milisatoshis / 1000
-            } sats`,
-            "done"
-          );
-
-          FollowUpEphemeralResponse(
-            interaction,
-            `Cerraste el faucet exitosamente, se reintegraron ${
-              milisatoshis / 1000
-            } sats`
-          );
-        },
-        onError: async () => {
-          log(
-            `${
-              user.username
-            } cerró el faucet ${faucetId} pero ocurrió un error al reintegrar ${
-              milisatoshis / 1000
-            } sats`,
-            "err"
-          );
-
-          FollowUpEphemeralResponse(
-            interaction,
-            `Ocurrió un error al reintegrar ${
-              milisatoshis / 1000
-            } sats. Id del faucet: ${faucetId}`
-          );
-        },
-      });
-
-      if (closedFaucet.closed) {
-        try {
-          if (closedFaucet.channelId && closedFaucet.messageId) {
-            const channel = await interaction.guild.channels.fetch(
-              closedFaucet.channelId
-            );
-
-            if (channel) {
-              const message = await channel.messages.fetch(
-                closedFaucet.messageId
-              );
-
-              if (message) {
-                await message.edit({
-                  embeds: [embed],
-                  components: [row],
-                });
-              }
-            }
-          }
-        } catch (err) {
-          console.log(err);
-        }
-      }
+    if (!faucetQueues.has(faucetId)) {
+      faucetQueues.set(faucetId, []);
     }
+
+    faucetQueues.get(faucetId).push({
+      operation: 'close',
+      interaction,
+      faucet
+    });
+
+    if (faucetQueues.get(faucetId).length === 1) {
+      processFaucetQueue(faucetId);
+    }
+
   } catch (err) {
-    log(
-      `Error cuando @${interaction.user.username} intentó cerrar un faucet - Código de error ${err.code} Mensaje: ${err.message}`,
-      "err"
-    );
+    log(`Error cuando @${interaction.user.username} intentó cerrar un faucet: ${err.message}`, "err");
     EphemeralMessageResponse(interaction, "Ocurrió un error");
   }
 };
 
 export { customId, invoke };
+

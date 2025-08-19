@@ -9,8 +9,8 @@ const accountsCache = new SimpleCache();
 
 const SALT = process.env.SALT ?? "";
 
-// NWC URI hardcodeado para pruebas
-const TEST_NWC_URI = process.env.TEST_NWC_URI ?? "";
+// NWC URI de la cuenta de servicio para manejar faucets
+const SERVICE_NWC_URI = process.env.SERVICE_NWC_URI ?? "";
 
 const createOrUpdateAccount = async (discord_id, discord_username, nwc_uri) => {
   try {
@@ -38,62 +38,60 @@ const createOrUpdateAccount = async (discord_id, discord_username, nwc_uri) => {
   }
 };
 
-// Función para obtener cuenta de prueba con NWC hardcodeado
-const getTestAccount = async (interaction, discord_id) => {
+// Función para obtener la cuenta de servicio que maneja los faucets
+const getServiceAccount = async (interaction) => {
   try {
-    const cachedAccount = accountsCache.get(`account:test`);
+    const cachedAccount = accountsCache.get(`account:service`);
     if (cachedAccount) return cachedAccount;
 
-    const userData = await interaction.guild.members.fetch(discord_id);
-    
-    log(`@${userData.user.username} - Usando cuenta de prueba`, "info");
+    log(`Obteniendo cuenta de servicio para faucets`, "info");
 
-    // Validar formato del NWC URI de prueba
-    const formatValidation = validateNWCURI(TEST_NWC_URI);
+    // Validar formato del NWC URI de servicio
+    const formatValidation = validateNWCURI(SERVICE_NWC_URI);
     if (!formatValidation.valid) {
-      log(`@${userData.user.username} - NWC URI de prueba inválido: ${formatValidation.error}`, "err");
+      log(`NWC URI de servicio inválido: ${formatValidation.error}`, "err");
       return {
         success: false,
-        message: `❌ **Error en configuración de prueba:** ${formatValidation.error}`
+        message: `❌ **Error en configuración de servicio:** ${formatValidation.error}`
       };
     }
 
-    // Probar la conexión NWC de prueba
-    const connectionTest = await testNWCConnection(TEST_NWC_URI);
+    // Probar la conexión NWC de servicio
+    const connectionTest = await testNWCConnection(SERVICE_NWC_URI);
     if (!connectionTest.valid) {
-      log(`@${userData.user.username} - Error de conexión NWC de prueba: ${connectionTest.error}`, "err");
+      log(`Error de conexión NWC de servicio: ${connectionTest.error}`, "err");
       return {
         success: false,
-        message: `❌ **Error de conexión de prueba:** ${connectionTest.error}`
+        message: `❌ **Error de conexión de servicio:** ${connectionTest.error}`
       };
     }
 
-    // Crear cliente NWC de prueba
+    // Crear cliente NWC de servicio
     const nwcClient = new NWCClient({
-      nostrWalletConnectUrl: TEST_NWC_URI
+      nostrWalletConnectUrl: SERVICE_NWC_URI
     });
 
-    log(`@${userData.user.username} - Cuenta de prueba validada exitosamente`, "info");
+    log(`Cuenta de servicio validada exitosamente - Balance: ${connectionTest.balance} sats`, "info");
 
     const createdAccount = {
       success: true,
       nwcClient,
       balance: connectionTest.balance,
-      isTestAccount: true, // Flag para identificar que es cuenta de prueba
-      userAccount: {
-        discord_id,
-        discord_username: userData.user.username,
-        isTest: true
+      isServiceAccount: true, // Flag para identificar que es cuenta de servicio
+      accountInfo: {
+        type: 'service',
+        purpose: 'faucet_management',
+        balance: connectionTest.balance
       }
     };
 
-    accountsCache.set(`account:test`, createdAccount, 7200000);
+    accountsCache.set(`account:service`, createdAccount, 7200000);
     return createdAccount;
   } catch (err) {
-    log(`Error en getTestAccount para @${userData.user.username}: ${err.message}`, "err");
+    log(`Error obteniendo cuenta de servicio: ${err.message}`, "err");
     return {
       success: false,
-      message: "❌ **Error inesperado al configurar cuenta de prueba.**"
+      message: "❌ **Error inesperado al obtener la cuenta de servicio.**"
     };
   }
 };
@@ -205,5 +203,5 @@ const getAndValidateAccount = async (interaction, discord_id) => {
   }
 };
 
-export { createOrUpdateAccount, getAndValidateAccount, getTestAccount };
+export { createOrUpdateAccount, getAndValidateAccount, getServiceAccount };
 

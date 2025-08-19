@@ -1,4 +1,5 @@
 import FaucetModel from "../schemas/FaucetSchema.js";
+import { FAUCET_COMMISSION } from "../utils/faucetConfig.js";
 
 const createFaucet = async (owner_id, owner_username, amount, maxUses) => {
   try {
