@@ -1,10 +1,9 @@
 import { EmbedBuilder, SlashCommandBuilder } from "discord.js";
-import { getOrCreateAccount } from "../handlers/accounts.js";
+import { getAndValidateAccount } from "../handlers/accounts.js";
 import {
   EphemeralMessageResponse,
   FollowUpEphemeralResponse,
   validateAmountAndBalance,
-  validateRelaysStatus,
 } from "../utils/helperFunctions.js";
 import { updateUserRank } from "../handlers/donate.js";
 import lnurl from "lnurl-pay";
@@ -33,18 +32,17 @@ const invoke = async (interaction) => {
     if (!user) return;
 
     await interaction.deferReply();
-    await validateRelaysStatus();
 
     const amount = parseInt(interaction.options.get(`monto`).value);
 
     log(`@${user.username} ejecutó /donar ${amount}`, "info");
 
-    const wallet = await getOrCreateAccount(user.id, user.username);
-    const senderBalance = await wallet.getBalance("BTC");
+    const wallet = await getAndValidateAccount(interaction, user.id);
+    const senderBalance = wallet.balance;
 
     const isValidAmount = validateAmountAndBalance(
       amount,
-      senderBalance / 1000
+      senderBalance
     );
 
     if (!isValidAmount.status)
@@ -56,54 +54,44 @@ const invoke = async (interaction) => {
     });
 
     if (invoice && invoice.invoice) {
-      await wallet.payInvoice({
-        paymentRequest: invoice.invoice,
-        onSuccess: async () => {
-          const updatedRank = await updateUserRank(
-            interaction.user.id,
-            "pozo",
-            amount
-          );
-
-          const embed = new EmbedBuilder()
-            .setColor(`#0099ff`)
-            .setAuthor({
-              name: `${interaction.user.globalName}`,
-              iconURL: `https://cdn.discordapp.com/avatars/${interaction.user.id}/${interaction.user.avatar}`,
-            })
-            .addFields(
-              {
-                name: `Donación a ${process.env.POOL_ADDRESS}`,
-                value: `${interaction.user.toString()} ha donado ${formatter(
-                  0,
-                  2
-                ).format(amount)} satoshis al pozo!`,
-              },
-              {
-                name: "Total donado",
-                value:
-                  updatedRank && updatedRank.amount
-                    ? `${formatter(0, 0).format(updatedRank.amount)}`
-                    : "0",
-              }
-            );
-
-          log(`@${user.username} donó ${amount} al pozo`, "info");
-
-          return interaction.editReply({ embeds: [embed] });
-        },
-        onError: () => {
-          log(
-            `@${user.username} no pudo realizar el pago de /donar ${amount}`,
-            "err"
-          );
-
-          EphemeralMessageResponse(
-            interaction,
-            "Ocurrió un error al realizar el pago."
-          );
-        },
+      const response = await wallet.nwcClient.payInvoice({
+        invoice: invoice.invoice,
       });
+
+      if (!response) throw new Error("Error al pagar la factura");
+
+      const updatedRank = await updateUserRank(
+        interaction.user.id,
+        "pozo",
+        amount
+      );
+
+      const embed = new EmbedBuilder()
+        .setColor(`#0099ff`)
+        .setAuthor({
+          name: `${interaction.user.globalName}`,
+          iconURL: `https://cdn.discordapp.com/avatars/${interaction.user.id}/${interaction.user.avatar}`,
+        })
+        .addFields(
+          {
+            name: `Donación a ${process.env.POOL_ADDRESS}`,
+            value: `${interaction.user.toString()} ha donado ${formatter(
+              0,
+              2
+            ).format(amount)} satoshis al pozo!`,
+          },
+          {
+            name: "Total donado",
+            value:
+              updatedRank && updatedRank.amount
+                ? `${formatter(0, 0).format(updatedRank.amount)}`
+                : "0",
+          }
+        );
+
+      log(`@${user.username} donó ${amount} al pozo`, "info");
+
+      return interaction.editReply({ embeds: [embed] });
     }
   } catch (err) {
     log(
