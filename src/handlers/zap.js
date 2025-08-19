@@ -1,5 +1,4 @@
-import { getOrCreateAccount } from "../handlers/accounts.js";
-import { updateUserRank } from "../handlers/donate.js";
+import { getAndValidateAccount, getTestAccount } from "../handlers/accounts.js";
 import { log } from "../handlers/log.js";
 import {
   validateAmountAndBalance,
@@ -7,6 +6,7 @@ import {
 } from "../utils/helperFunctions.js";
 
 const zap = async (
+  interaction,
   sender,
   receiver,
   amount,
@@ -17,50 +17,57 @@ const zap = async (
   try {
     if (amount <= 0)
       return { success: false, message: "No se permiten saldos negativos" };
-    const msatsAmount = amount * 1000;
-    await validateRelaysStatus();
-    const senderWallet = await getOrCreateAccount(sender.id, sender.username);
 
-    const receiverWallet = await getOrCreateAccount(
-      receiver.id,
-      receiver.username
+    const senderWallet = await getAndValidateAccount(interaction, sender.id);
+
+    /*const receiverWallet = await getAndValidateAccount(
+      interaction,
+      receiver.id
+    );*/
+
+    const receiverWallet = await getTestAccount(
+      interaction,
+      receiver.id
     );
 
-    if (!senderWallet || !receiverWallet)
+    if (!senderWallet.success) {
       return {
         success: false,
-        message: "Ocurrió un error al obtener la información del usuario",
-      };
+        message: senderWallet.message
+      }
+    };
 
-    if (senderWallet.pubkey === receiverWallet.pubkey)
+    if (!receiverWallet.success) {
+      return {
+        success: false,
+        message: receiverWallet.message
+      }
+    };
+
+    if (senderWallet.userAccount.discord_id === receiverWallet.userAccount.discord_id)
       return {
         success: false,
         message: "No puedes enviarte sats a vos mismo.",
       };
 
-    const senderBalance = await senderWallet.getBalance("BTC");
+    const senderBalance = senderWallet.balance;
     const isValidAmount = validateAmountAndBalance(
       amount,
-      senderBalance / 1000
+      senderBalance
     );
 
     if (!isValidAmount.status)
       return { success: false, message: isValidAmount.content };
 
-    const invoiceDetails = await receiverWallet.generateInvoice({
-      milisatoshis: msatsAmount,
-      comment: zapMessage,
-    });
+    const invoiceDetails = await receiverWallet.nwcClient.makeInvoice({ amount: amount * 1000, description: zapMessage });
 
     log(
-      `@${sender.username} va a pagar la factura ${invoiceDetails.pr}`,
+      `@${sender.username} va a pagar la factura ${invoiceDetails.invoice}`,
       "info"
     );
 
-    await senderWallet.payInvoice({
-      paymentRequest: invoiceDetails.pr,
-      onSuccess,
-      onError,
+    const response = await senderWallet.nwcClient.payInvoice({
+      invoice: invoiceDetails.invoice,
     });
 
     return { success: true, message: "Pago realizado con exito" };

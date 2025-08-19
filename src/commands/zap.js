@@ -83,6 +83,7 @@ const invoke = async (interaction) => {
     };
 
     const { success, message } = await zap(
+      interaction,
       user,
       receiverData.user,
       amount,
@@ -90,8 +91,11 @@ const invoke = async (interaction) => {
       onError,
       zapMessage
     );
+
     if (!success) {
       return EphemeralMessageResponse(interaction, message);
+    } else{
+      onSuccess();
     }
   } catch (err) {
     log(

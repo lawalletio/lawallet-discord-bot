@@ -2,8 +2,72 @@ import NDK, { NDKEvent, NDKRelaySet } from "@nostr-dev-kit/ndk";
 import { connectedNdk, knownRelays } from "../../Bot.js";
 import { log } from "../handlers/log.js";
 import SimpleCache from "../handlers/SimpleCache.js";
+import { NWCClient } from "@getalby/sdk";
 
 export const signupCache = new SimpleCache();
+
+export const validateNWCURI = (nwcUri) => {
+  try {
+    if (!nwcUri || typeof nwcUri !== 'string') {
+      return { valid: false, error: 'El URI de NWC no puede estar vacío' };
+    }
+
+    if (!nwcUri.startsWith('nostr+walletconnect://')) {
+      return { valid: false, error: 'El URI debe comenzar con "nostr+walletconnect://"' };
+    }
+
+    const uriParts = nwcUri.replace('nostr+walletconnect://', '').split('?');
+    if (uriParts.length !== 2) {
+      return { valid: false, error: 'Formato de URI inválido' };
+    }
+
+    const [pubkey, params] = uriParts;
+    
+    if (!/^[0-9a-fA-F]{64}$/.test(pubkey)) {
+      return { valid: false, error: 'Clave pública inválida' };
+    }
+
+    const searchParams = new URLSearchParams(params);
+    const relay = searchParams.get('relay');
+    const secret = searchParams.get('secret');
+
+    if (!relay) {
+      return { valid: false, error: 'Falta el parámetro "relay"' };
+    }
+
+    if (!secret) {
+      return { valid: false, error: 'Falta el parámetro "secret"' };
+    }
+
+    try {
+      new URL(relay);
+    } catch {
+      return { valid: false, error: 'URL del relay inválida' };
+    }
+
+    return { valid: true };
+  } catch (error) {
+    return { valid: false, error: 'Error al validar el URI' };
+  }
+};
+
+export const testNWCConnection = async (nwcUri) => {
+  let nwc = null;
+  try {
+    nwc = new NWCClient({
+      nostrWalletConnectUrl: nwcUri
+    });
+
+    const response = await nwc.getBalance();
+    
+    return { valid: true, balance: Number(response.balance.toString()) / 1000 };
+  } catch (error) {
+    return { 
+      valid: false, 
+      error: `Error de conexión: ${error.message}` 
+    };
+  }
+};
 
 export const requiredEnvVar = (key) => {
   const envVar = process.env[key];

@@ -56,11 +56,11 @@ async function runBot() {
   // Login with the credentials stored in .env
   client.login(botToken);
 
-  connectedNdk.pool.relays.forEach(async (relay) => {
+  /*connectedNdk.pool.relays.forEach(async (relay) => {
     log(`conectando relay: ${relay.url}`, "done");
     knownRelays.push(relay.url);
     await relay.connect();
-  });
+  });*/
 
   // setInterval(validateRelaysStatus, 30000);
 

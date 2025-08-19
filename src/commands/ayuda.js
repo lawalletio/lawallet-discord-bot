@@ -34,7 +34,6 @@ const invoke = async (interaction) => {
           value: `${cmd.description}\n`,
         });
       }
-      // Output[cmdOutput.length - 1] = dedent(cmdOutput);
     });
 
     if (!cmdOutput.length)
@@ -49,11 +48,6 @@ const invoke = async (interaction) => {
     `)
       )
       .addFields(
-        { name: `\u200B`, value: `\u200B` },
-        {
-          name: `INFORMACIÓN IMPORTANTE`,
-          value: `¡Este es un servicio de custodia, no controlas tu dinero hasta que lo retiras!`,
-        },
         { name: `\u200B`, value: `\u200B` },
         ...cmdOutput.map((cmd) => cmd)
       );
