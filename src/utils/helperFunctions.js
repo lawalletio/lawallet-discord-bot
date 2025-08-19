@@ -3,6 +3,7 @@ import { connectedNdk, knownRelays } from "../../Bot.js";
 import { log } from "../handlers/log.js";
 import SimpleCache from "../handlers/SimpleCache.js";
 import { NWCClient } from "@getalby/sdk";
+import bolt11 from 'bolt11';
 
 export const signupCache = new SimpleCache();
 
@@ -245,6 +246,58 @@ async function existIdentity(federation, username) {
     return false;
   }
 }
+
+export const validateAndDecodeBOLT11 = (bolt11String) => {
+  try {
+    // Verificar que no esté vacío
+    if (!bolt11String || typeof bolt11String !== 'string') {
+      return { valid: false, error: 'El BOLT11 no puede estar vacío' };
+    }
+
+    // Decodificar el BOLT11
+    const decoded = bolt11.decode(bolt11String);
+    
+    if (!decoded) {
+      return { valid: false, error: 'No se pudo decodificar el BOLT11' };
+    }
+
+    // Verificar que tenga un monto válido
+    if (!decoded.satoshis && decoded.millisatoshis) {
+      decoded.satoshis = Math.floor(decoded.millisatoshis / 1000);
+    }
+
+    if (!decoded.satoshis) {
+      return { valid: false, error: 'El BOLT11 no tiene un monto válido' };
+    }
+
+    return {
+      valid: true,
+      decoded,
+      amount: decoded.satoshis,
+      description: decoded.description || 'Sin descripción',
+      timestamp: decoded.timestamp,
+      expiry: decoded.expiry
+    };
+
+  } catch (error) {
+    return { 
+      valid: false, 
+      error: `Error al decodificar BOLT11: ${error.message}` 
+    };
+  }
+};
+
+// Función para verificar si el BOLT11 ha expirado
+export const isBOLT11Expired = (decodedBOLT11) => {
+  if (!decodedBOLT11.timestamp || !decodedBOLT11.expiry) {
+    return false; // Si no tiene timestamp o expiry, asumimos que no expira
+  }
+
+  const currentTime = Math.floor(Date.now() / 1000);
+  const expiryTime = decodedBOLT11.timestamp + decodedBOLT11.expiry;
+  
+  return currentTime > expiryTime;
+};
 
 export {
   EphemeralMessageResponse,
