@@ -4,7 +4,6 @@ import { getSumOfDonationAmounts, getTopRanking } from "../handlers/donate.js";
 import { AuthorConfig } from "../utils/helperConfig.js";
 import { formatter } from "../utils/helperFormatter.js";
 import { log } from "../handlers/log.js";
-import { validateRelaysStatus } from "../utils/helperFunctions.js";
 
 const availableTypes = ["pozo", "comunidad"];
 
@@ -32,7 +31,6 @@ const invoke = async (interaction) => {
     if (!user) return;
 
     await interaction.deferReply();
-    await validateRelaysStatus();
 
     const typeParam = interaction.options.get(`tipo`);
 

@@ -6,7 +6,6 @@ import {
 import { getAndValidateAccount } from "../handlers/accounts.js";
 import {
   EphemeralMessageResponse,
-  validateRelaysStatus,
 } from "../utils/helperFunctions.js";
 import QRCode from "qrcode";
 import { log } from "../handlers/log.js";

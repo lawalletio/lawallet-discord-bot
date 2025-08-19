@@ -9,12 +9,6 @@ import { requiredEnvVar } from "./src/utils/helperFunctions.js";
 import WebSocket from "ws";
 Object.assign(global, { WebSocket });
 
-export const connectedNdk = new NDK({
-  explicitRelayUrls: ["wss://relay.lawallet.ar/", "wss://relay.hodl.ar/"],
-  autoConnectUserRelays: false,
-  autoFetchUserMutelist: false,
-});
-
 const mongoURI = requiredEnvVar("MONGODB_URI");
 const botToken = requiredEnvVar("BOT_TOKEN");
 
@@ -55,15 +49,7 @@ async function runBot() {
 
   // Login with the credentials stored in .env
   client.login(botToken);
-
-  /*connectedNdk.pool.relays.forEach(async (relay) => {
-    log(`conectando relay: ${relay.url}`, "done");
-    knownRelays.push(relay.url);
-    await relay.connect();
-  });*/
-
-  // setInterval(validateRelaysStatus, 30000);
-
+  
   log("Started connecting to MongoDB...", "warn");
 
   connect(mongoURI)

@@ -2,7 +2,6 @@ import { getAndValidateAccount, getTestAccount } from "../handlers/accounts.js";
 import { log } from "../handlers/log.js";
 import {
   validateAmountAndBalance,
-  validateRelaysStatus,
 } from "../utils/helperFunctions.js";
 
 const zap = async (

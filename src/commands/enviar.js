@@ -1,9 +1,8 @@
 import { SlashCommandBuilder } from "discord.js";
-import { getOrCreateAccount } from "../handlers/accounts.js";
+import { getAndValidateAccount } from "../handlers/accounts.js";
 import {
   EphemeralMessageResponse,
   validateAmountAndBalance,
-  validateRelaysStatus,
 } from "../utils/helperFunctions.js";
 import lnurl from "lnurl-pay";
 import { log } from "../handlers/log.js";
@@ -11,12 +10,12 @@ import { log } from "../handlers/log.js";
 // Creates an object with the data required by Discord's API to create a SlashCommand
 const create = () => {
   const command = new SlashCommandBuilder()
-    .setName("retirar")
+    .setName("enviar")
     .setDescription("Retira satoshis a una cuenta externa a discord")
     .addStringOption((opt) =>
       opt
         .setName("address")
-        .setDescription("dirección de lightning network")
+        .setDescription("Dirección de lightning network")
         .setRequired(true)
     )
     .addNumberOption((opt) =>
@@ -36,16 +35,14 @@ const invoke = async (interaction) => {
     if (!user) return;
 
     await interaction.deferReply({ ephemeral: true });
-    await validateRelaysStatus();
 
     const address = interaction.options.get(`address`).value;
     const amount = parseInt(interaction.options.get(`monto`).value);
 
     log(`@${user.username} ejecutó /retirar ${address} ${amount}`, "info");
 
-    const wallet = await getOrCreateAccount(user.id, user.username);
-    const balance = await wallet.getBalance("BTC");
-    const balanceInSats = balance / 1000;
+    const wallet = await getAndValidateAccount(interaction, user.id);
+    const balanceInSats = wallet.balance;
 
     const isValidAmount = validateAmountAndBalance(amount, balanceInSats);
 
@@ -63,30 +60,20 @@ const invoke = async (interaction) => {
         "info"
       );
 
-      wallet.payInvoice({
-        paymentRequest: invoice.invoice,
-        onSuccess: () => {
-          log(
-            `@${interaction.user.username} pagó la factura ${invoice.invoice}`,
-            "info"
-          );
+      const response = await wallet.nwcClient.payInvoice({
+        invoice: invoice.invoice,
+      });
+      
+      if (!response) throw new Error("Error al pagar la factura");
 
-          interaction.editReply({
-            content: `Enviaste ${amount} satoshis a ${address} desde tu billetera`,
-            ephemeral: true,
-          });
-        },
-        onError: () => {
-          log(
-            `@${interaction.user.username} no pudo pagar la factura ${invoice.invoice}`,
-            "err"
-          );
+      log(
+        `@${interaction.user.username} pagó la factura ${invoice.invoice}`,
+        "info"
+      );
 
-          EphemeralMessageResponse(
-            interaction,
-            "Ocurrió un error al realizar el pago."
-          );
-        },
+      interaction.editReply({
+        content: `Enviaste ${amount} satoshis a ${address} desde tu billetera`,
+        ephemeral: true,
       });
     }
   } catch (err) {

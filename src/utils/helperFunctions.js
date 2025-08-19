@@ -1,5 +1,4 @@
 import NDK, { NDKEvent, NDKRelaySet } from "@nostr-dev-kit/ndk";
-import { connectedNdk, knownRelays } from "../../Bot.js";
 import { log } from "../handlers/log.js";
 import SimpleCache from "../handlers/SimpleCache.js";
 import { NWCClient } from "@getalby/sdk";
@@ -194,29 +193,6 @@ const publishProfile = async (wallet, user) => {
   }
 };
 
-async function validateRelaysStatus() {
-  let connectedRelays = connectedNdk.pool.connectedRelays();
-
-  await Promise.all(
-    knownRelays.map(async (relayUrl) => {
-      let isRelayConnected = connectedRelays.find(
-        (relay) => relay.url === relayUrl
-      );
-
-      if (!isRelayConnected) {
-        let disconnectedRelay = connectedNdk.pool.relays.get(relayUrl);
-
-        if (disconnectedRelay) {
-          log(`reconectando relay: ${disconnectedRelay.url}`, "done");
-          await disconnectedRelay.connect();
-        }
-      }
-    })
-  );
-
-  return;
-}
-
 async function getSignupInfo(federation) {
   const infoFromCache = signupCache.get(`signup:${federation.id}`);
   if (infoFromCache) return infoFromCache;
@@ -306,7 +282,6 @@ export {
   handleBotResponse,
   publishProfile,
   validateAmountAndBalance,
-  validateRelaysStatus,
   getSignupInfo,
   existIdentity,
 };
