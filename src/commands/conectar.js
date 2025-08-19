@@ -8,7 +8,7 @@ import { createOrUpdateAccount } from "../handlers/accounts.js";
 
 const create = () => {
   const command = new SlashCommandBuilder()
-    .setName("connect")
+    .setName("conectar")
     .setDescription("Conecta tu billetera a través de Nostr Wallet Connect.")
     .addStringOption((opt) =>
       opt
