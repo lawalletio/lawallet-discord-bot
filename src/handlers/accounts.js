@@ -100,10 +100,25 @@ const getTestAccount = async (interaction, discord_id) => {
 
 const getAndValidateAccount = async (interaction, discord_id) => {
   try {
-    const cachedAccount = accountsCache.get(`account:${discord_id}`);
-    if (cachedAccount) return cachedAccount;
-
     const userData = await interaction.guild.members.fetch(discord_id);
+
+    const cachedAccount = accountsCache.get(`account:${discord_id}`);
+    if (cachedAccount && cachedAccount.success) {
+      try {
+        log(`@${userData.user.username} - Usando cuenta cacheada, actualizando balance`, "info");
+        
+        const currentBalance = await cachedAccount.nwcClient.getBalance();
+        const updatedBalance = Number(currentBalance.balance.toString()) / 1000;
+        
+        cachedAccount.balance = updatedBalance;
+        
+        log(`@${userData.user.username} - Balance actualizado: ${updatedBalance} sats`, "info");
+        
+        return cachedAccount;
+      } catch (balanceError) {
+        log(`@${userData.user.username} - Error al actualizar balance cacheado: ${balanceError.message}`, "err");
+      }
+    }
     
     const userAccount = await AccountModel.findOne({ discord_id });
     if (!userAccount) {
